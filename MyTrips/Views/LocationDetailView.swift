@@ -32,7 +32,7 @@ struct LocationDetailView: View {
                         .font(.title)
                     TextField("Address", text: $address, axis: .vertical)
                 }
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
                 
                 if isChanged {
                     Button("Update") {

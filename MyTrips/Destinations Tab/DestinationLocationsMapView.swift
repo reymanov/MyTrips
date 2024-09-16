@@ -3,8 +3,18 @@ import MapKit
 import SwiftData
 
 struct DestinationLocationsMapView: View {
+    @Environment(\.modelContext) private var modelContext
+    
     @State private var cameraPosition: MapCameraPosition = .automatic
     @State private var visibleRegion: MKCoordinateRegion?
+    
+    @State private var searchText = ""
+    @FocusState private var searchFieldFocus: Bool
+    
+    @Query(filter: #Predicate<Placemark> {$0.destination == nil}) private var searchPlacemarks: [Placemark]
+    private var listPlacemarks: [Placemark] {
+        searchPlacemarks + destination.placemarks
+    }
     
     var destination: Destination
     
@@ -37,29 +47,78 @@ struct DestinationLocationsMapView: View {
         }
         .padding(.horizontal)
         .padding(.top)
-        Map(
-            position: $cameraPosition
-        ){
-            ForEach(destination.placemarks) { placemark in
-                Marker( coordinate: placemark.coordinate) {
-                    Label(placemark.name, systemImage: "star.fill")
+        Map(position: $cameraPosition) {
+            ForEach(listPlacemarks) { placemark in
+                if placemark.destination != nil {
+                    Marker( coordinate: placemark.coordinate) {
+                        Label(placemark.name, systemImage: "star.fill")
+                            .foregroundStyle(.accent)
+                    }
+                    .tint(.accent)
+                    
+                }else {
+                    Marker(placemark.name, coordinate: placemark.coordinate)
                 }
+                
             }
+        }
+        .safeAreaInset(edge: .bottom) {
+            HStack {
+                TextField("Search...", text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($searchFieldFocus)
+                    .overlay(alignment: .trailing) {
+                        if searchFieldFocus {
+                            Button {
+                                searchText = ""
+                                searchFieldFocus = false
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                            }
+                            .offset(x: -5)
+                        }
+                    }
+                    .onSubmit {
+                        Task {
+                            await MapManager.searchPlaces(
+                                modelContext,
+                                searchText: searchText,
+                                visibleRegion: visibleRegion
+                            )
+                            searchText = ""
+                        }
+                    }
+                
+                if !searchPlacemarks.isEmpty {
+                    Button {
+                        MapManager.removeSearchResults(modelContext)
+                    } label: {
+                        Image(systemName: "mappin.slash.circle.fill")
+                            .imageScale(.large)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(8)
+                    .background(.red)
+                    .clipShape(.circle)
+                }
+                
+            }
+            .padding()
         }
         .navigationTitle(destination.name)
         .navigationBarTitleDisplayMode(.inline)
+        .onMapCameraChange(frequency: .onEnd) { context in
+            visibleRegion = context.region
+        }
         .onAppear {
-            
+            MapManager.removeSearchResults(modelContext)
             if let region = destination.region {
                 cameraPosition = .region(region)
             }
         }
-        .onMapCameraChange(
-            frequency: .onEnd
-        ) { context in
-            visibleRegion = context.region
+        .onDisappear {
+            MapManager.removeSearchResults(modelContext)
         }
-        
     }
 }
 
@@ -71,4 +130,5 @@ struct DestinationLocationsMapView: View {
     return NavigationStack {
         DestinationLocationsMapView(destination: destination)
     }
+    .modelContainer(Destination.preview)
 }

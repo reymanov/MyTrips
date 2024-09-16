@@ -18,6 +18,8 @@ struct DestinationLocationsMapView: View {
     
     var destination: Destination
     
+    @State private var selectedPlacemark: Placemark?
+    
     var body: some View {
         @Bindable var destination = destination
         VStack {
@@ -47,25 +49,32 @@ struct DestinationLocationsMapView: View {
         }
         .padding(.horizontal)
         .padding(.top)
-        Map(position: $cameraPosition) {
+        Map(position: $cameraPosition, selection: $selectedPlacemark) {
             ForEach(listPlacemarks) { placemark in
-                if placemark.destination != nil {
-                    Marker( coordinate: placemark.coordinate) {
-                        Label(placemark.name, systemImage: "star.fill")
-                            .foregroundStyle(.accent)
+                Group {
+                    if placemark.destination != nil {
+                        Marker( coordinate: placemark.coordinate) {
+                            Label(placemark.name, systemImage: "star.fill")
+                                .foregroundStyle(.accent)
+                        }
+                        .tint(.accent)
+                        
+                    }else {
+                        Marker(placemark.name, coordinate: placemark.coordinate)
                     }
-                    .tint(.accent)
-                    
-                }else {
-                    Marker(placemark.name, coordinate: placemark.coordinate)
                 }
-                
+                .tag(placemark)
             }
+        }
+        .sheet(item: $selectedPlacemark) {selectedPlacemark in
+            LocationDetailView(destination: destination, selectedPlacemark: selectedPlacemark)
+                .presentationDetents([.height(450)])
         }
         .safeAreaInset(edge: .bottom) {
             HStack {
                 TextField("Search...", text: $searchText)
                     .textFieldStyle(.roundedBorder)
+                    .autocorrectionDisabled()
                     .focused($searchFieldFocus)
                     .overlay(alignment: .trailing) {
                         if searchFieldFocus {
@@ -86,6 +95,7 @@ struct DestinationLocationsMapView: View {
                                 visibleRegion: visibleRegion
                             )
                             searchText = ""
+                            cameraPosition = .automatic
                         }
                     }
                 
